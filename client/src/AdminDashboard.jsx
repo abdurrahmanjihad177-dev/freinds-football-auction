@@ -3,13 +3,15 @@ import { io } from "socket.io-client";
 import players from "./players";
 import "./AdminDashboard.css";
 
-  const socket = io("https://friends-football-auction.onrender.com", {
-  transports: ["polling", "websocket"],
-  upgrade: true,
-  reconnection: true,
-  reconnectionAttempts: 10,
-  reconnectionDelay: 1000,
-});
+const socket = io(
+  "https://freinds-football-auction-1.onrender.com",
+  {
+    transports: ["websocket", "polling"],
+    reconnection: true,
+    reconnectionAttempts: 10,
+    reconnectionDelay: 1000,
+  }
+);
 
 const AUCTION_PHASES = [
   "Attackers",
@@ -25,49 +27,81 @@ function AdminDashboard({ adminName, onLogout }) {
   const [playerIndex, setPlayerIndex] = useState(0);
 
   const [currentBid, setCurrentBid] = useState(0);
-  const [highestTeam, setHighestTeam] = useState("No Team");
-  const [auctionStatus, setAuctionStatus] = useState("waiting");
+  const [highestTeam, setHighestTeam] =
+    useState("No Team");
+  const [auctionStatus, setAuctionStatus] =
+    useState("waiting");
 
   const [teams, setTeams] = useState({});
-  const [participants, setParticipants] = useState([]);
+  const [participants, setParticipants] =
+    useState([]);
 
-  const [soldPlayers, setSoldPlayers] = useState([]);
-  const [unsoldPlayers, setUnsoldPlayers] = useState([]);
+  const [soldPlayers, setSoldPlayers] =
+    useState([]);
+  const [unsoldPlayers, setUnsoldPlayers] =
+    useState([]);
 
-  const currentPhase = AUCTION_PHASES[phaseIndex];
+  const currentPhase =
+    AUCTION_PHASES[phaseIndex];
 
   const phasePlayers = useMemo(() => {
     return players.filter(
-      (player) => player.category === currentPhase
+      (player) =>
+        player.category === currentPhase
     );
   }, [currentPhase]);
 
-  const currentPlayer = phasePlayers[playerIndex];
+  const currentPlayer =
+    phasePlayers[playerIndex];
 
   const startingBid =
     Number(currentPlayer?.startingBid) || 0;
 
-  const auctionLive = auctionStatus === "live";
+  const auctionLive =
+    auctionStatus === "live";
 
   // =====================================
-  // SOCKET
+  // SOCKET CONNECTION
   // =====================================
 
   useEffect(() => {
-    socket.emit("admin:join");
+    const handleConnect = () => {
+      console.log(
+        "Admin connected:",
+        socket.id
+      );
+
+      socket.emit("admin:join");
+    };
+
+    const handleDisconnect = () => {
+      console.log("Admin disconnected");
+    };
+
+    const handleConnectError = (error) => {
+      console.error(
+        "Socket connection error:",
+        error.message
+      );
+    };
 
     const handleAuctionState = (state) => {
-      setCurrentBid(Number(state?.currentBid) || 0);
+      setCurrentBid(
+        Number(state?.currentBid) || 0
+      );
 
       setHighestTeam(
-        state?.highestTeam || "No Team"
+        state?.highestTeam ||
+          "No Team"
       );
 
       setAuctionStatus(
-        state?.auctionStatus || "waiting"
+        state?.auctionStatus ||
+          "waiting"
       );
 
-      const serverPlayer = state?.currentPlayer;
+      const serverPlayer =
+        state?.currentPlayer;
 
       if (!serverPlayer) return;
 
@@ -78,18 +112,22 @@ function AdminDashboard({ adminName, onLogout }) {
         );
 
       if (serverPhaseIndex !== -1) {
-        setPhaseIndex(serverPhaseIndex);
-
-        const playersInPhase = players.filter(
-          (player) =>
-            player.category ===
-            serverPlayer.category
+        setPhaseIndex(
+          serverPhaseIndex
         );
+
+        const playersInPhase =
+          players.filter(
+            (player) =>
+              player.category ===
+              serverPlayer.category
+          );
 
         const index =
           playersInPhase.findIndex(
             (player) =>
-              player.id === serverPlayer.id
+              player.id ===
+              serverPlayer.id
           );
 
         if (index !== -1) {
@@ -102,9 +140,10 @@ function AdminDashboard({ adminName, onLogout }) {
       setTeams(data || {});
     };
 
-    const handleParticipantsUpdate = (data) => {
-      setParticipants(data || []);
-    };
+    const handleParticipantsUpdate =
+      (data) => {
+        setParticipants(data || []);
+      };
 
     const handleSoldUpdate = (data) => {
       setSoldPlayers(data || []);
@@ -117,9 +156,24 @@ function AdminDashboard({ adminName, onLogout }) {
     const handleError = (data) => {
       alert(
         data?.message ||
-        "Something went wrong."
+          "Something went wrong."
       );
     };
+
+    socket.on(
+      "connect",
+      handleConnect
+    );
+
+    socket.on(
+      "disconnect",
+      handleDisconnect
+    );
+
+    socket.on(
+      "connect_error",
+      handleConnectError
+    );
 
     socket.on(
       "auction:state",
@@ -151,7 +205,26 @@ function AdminDashboard({ adminName, onLogout }) {
       handleError
     );
 
+    if (socket.connected) {
+      socket.emit("admin:join");
+    }
+
     return () => {
+      socket.off(
+        "connect",
+        handleConnect
+      );
+
+      socket.off(
+        "disconnect",
+        handleDisconnect
+      );
+
+      socket.off(
+        "connect_error",
+        handleConnectError
+      );
+
       socket.off(
         "auction:state",
         handleAuctionState
@@ -205,24 +278,29 @@ function AdminDashboard({ adminName, onLogout }) {
 
   const selectTeam = (teamName) => {
     if (!auctionLive) {
-      alert("Start the auction first.");
+      alert(
+        "Start the auction first."
+      );
       return;
     }
 
     const team = teams[teamName];
 
-    if (!team) {
-      return;
-    }
+    if (!team) return;
 
-    if (team.players.length >= MAX_PLAYERS) {
+    if (
+      team.players.length >=
+      MAX_PLAYERS
+    ) {
       alert(
         `${teamName} already has ${MAX_PLAYERS} players.`
       );
       return;
     }
 
-    if (currentBid > team.budget) {
+    if (
+      currentBid > team.budget
+    ) {
       alert(
         `${teamName} does not have enough budget.`
       );
@@ -231,7 +309,9 @@ function AdminDashboard({ adminName, onLogout }) {
 
     socket.emit(
       "auction:select-team",
-      { teamName }
+      {
+        teamName,
+      }
     );
   };
 
@@ -246,7 +326,9 @@ function AdminDashboard({ adminName, onLogout }) {
       !highestTeam ||
       highestTeam === "No Team"
     ) {
-      alert("Please select a team first.");
+      alert(
+        "Please select a team first."
+      );
       return;
     }
 
@@ -260,7 +342,9 @@ function AdminDashboard({ adminName, onLogout }) {
   const markUnsold = () => {
     if (!auctionLive) return;
 
-    socket.emit("auction:unsold");
+    socket.emit(
+      "auction:unsold"
+    );
   };
 
   // =====================================
@@ -268,7 +352,9 @@ function AdminDashboard({ adminName, onLogout }) {
   // =====================================
 
   const resetAuction = () => {
-    socket.emit("auction:reset");
+    socket.emit(
+      "auction:reset"
+    );
   };
 
   // =====================================
@@ -288,7 +374,8 @@ function AdminDashboard({ adminName, onLogout }) {
       phasePlayers.length - 1
     ) {
       setPlayerIndex(
-        (previous) => previous + 1
+        (previous) =>
+          previous + 1
       );
 
       resetAuction();
@@ -300,7 +387,8 @@ function AdminDashboard({ adminName, onLogout }) {
       AUCTION_PHASES.length - 1
     ) {
       setPhaseIndex(
-        (previous) => previous + 1
+        (previous) =>
+          previous + 1
       );
 
       setPlayerIndex(0);
@@ -337,7 +425,8 @@ function AdminDashboard({ adminName, onLogout }) {
     }
 
     setPhaseIndex(
-      (previous) => previous + 1
+      (previous) =>
+        previous + 1
     );
 
     setPlayerIndex(0);
@@ -349,16 +438,22 @@ function AdminDashboard({ adminName, onLogout }) {
   // STATS
   // =====================================
 
-  const totalPlayers = players.length;
-  const totalSold = soldPlayers.length;
-  const totalUnsold = unsoldPlayers.length;
+  const totalPlayers =
+    players.length;
 
-  const totalRemaining = Math.max(
-    totalPlayers -
-      totalSold -
-      totalUnsold,
-    0
-  );
+  const totalSold =
+    soldPlayers.length;
+
+  const totalUnsold =
+    unsoldPlayers.length;
+
+  const totalRemaining =
+    Math.max(
+      totalPlayers -
+        totalSold -
+        totalUnsold,
+      0
+    );
 
   const onlineTeams =
     participants.filter(
@@ -388,10 +483,7 @@ function AdminDashboard({ adminName, onLogout }) {
   return (
     <div className="admin-dashboard">
 
-      {/* HEADER */}
-
       <header className="admin-header">
-
         <div className="admin-header-content">
 
           <p className="admin-eyebrow">
@@ -403,9 +495,10 @@ function AdminDashboard({ adminName, onLogout }) {
           </h1>
 
           <p className="admin-subtitle">
-            Welcome, {adminName || "Admin"}.
-            Manage players, teams and live
-            auction activity.
+            Welcome,{" "}
+            {adminName || "Admin"}.
+            Manage players, teams
+            and live auction activity.
           </p>
 
         </div>
@@ -414,7 +507,9 @@ function AdminDashboard({ adminName, onLogout }) {
 
           <div
             className={`admin-live-status ${
-              auctionLive ? "live" : ""
+              auctionLive
+                ? "live"
+                : ""
             }`}
           >
             <span className="status-dot" />
@@ -429,7 +524,6 @@ function AdminDashboard({ adminName, onLogout }) {
           </button>
 
         </div>
-
       </header>
 
       {/* PHASE */}
@@ -469,7 +563,6 @@ function AdminDashboard({ adminName, onLogout }) {
                     : ""
                 }`}
               >
-
                 <span>
                   {index + 1}
                 </span>
@@ -477,7 +570,6 @@ function AdminDashboard({ adminName, onLogout }) {
                 <p>
                   {phase}
                 </p>
-
               </div>
             )
           )}
@@ -491,22 +583,39 @@ function AdminDashboard({ adminName, onLogout }) {
       <section className="admin-stats">
 
         <div className="admin-stat-card">
-          <span>TOTAL PLAYERS</span>
-          <strong>{totalPlayers}</strong>
+          <span>
+            TOTAL PLAYERS
+          </span>
+
+          <strong>
+            {totalPlayers}
+          </strong>
         </div>
 
         <div className="admin-stat-card">
-          <span>PLAYERS SOLD</span>
-          <strong>{totalSold}</strong>
+          <span>
+            PLAYERS SOLD
+          </span>
+
+          <strong>
+            {totalSold}
+          </strong>
         </div>
 
         <div className="admin-stat-card">
-          <span>PLAYERS REMAINING</span>
-          <strong>{totalRemaining}</strong>
+          <span>
+            PLAYERS REMAINING
+          </span>
+
+          <strong>
+            {totalRemaining}
+          </strong>
         </div>
 
         <div className="admin-stat-card">
-          <span>TEAMS ONLINE</span>
+          <span>
+            TEAMS ONLINE
+          </span>
 
           <strong>
             {onlineTeams} /{" "}
@@ -541,23 +650,20 @@ function AdminDashboard({ adminName, onLogout }) {
             </div>
 
             <div className="player-number">
-
               {playerIndex + 1}
 
               <small>
                 / {phasePlayers.length}
               </small>
-
             </div>
 
           </div>
-
-          {/* PLAYER DETAILS */}
 
           <div className="player-details">
 
             <div className="player-detail">
               <span>CATEGORY</span>
+
               <strong>
                 {currentPlayer.category}
               </strong>
@@ -565,27 +671,32 @@ function AdminDashboard({ adminName, onLogout }) {
 
             <div className="player-detail">
               <span>TIER</span>
+
               <strong>
                 {currentPlayer.tier}
               </strong>
             </div>
 
             <div className="player-detail">
-              <span>STARTING BID</span>
+              <span>
+                STARTING BID
+              </span>
 
               <strong>
                 $
-                {formatMoney(startingBid)}
+                {formatMoney(
+                  startingBid
+                )}
               </strong>
             </div>
 
           </div>
 
-          {/* BID */}
-
           <div className="bid-display">
 
-            <span>CURRENT BID</span>
+            <span>
+              CURRENT BID
+            </span>
 
             <strong>
               $
@@ -597,8 +708,6 @@ function AdminDashboard({ adminName, onLogout }) {
 
           </div>
 
-          {/* HIGHEST TEAM */}
-
           <div className="highest-bidder">
 
             <span>
@@ -606,29 +715,30 @@ function AdminDashboard({ adminName, onLogout }) {
             </span>
 
             <strong>
-              {highestTeam !== "No Team"
+              {highestTeam !==
+              "No Team"
                 ? highestTeam
                 : "No Team Selected"}
             </strong>
 
           </div>
 
-          {/* START */}
-
           {!auctionLive &&
-            auctionStatus !== "sold" &&
-            auctionStatus !== "unsold" && (
+            auctionStatus !==
+              "sold" &&
+            auctionStatus !==
+              "unsold" && (
 
-            <button
-              className="start-auction-btn"
-              onClick={startAuction}
-            >
-              🔨 START AUCTION
-            </button>
+              <button
+                className="start-auction-btn"
+                onClick={
+                  startAuction
+                }
+              >
+                🔨 START AUCTION
+              </button>
 
-          )}
-
-          {/* TEAM SELECTION */}
+            )}
 
           <div className="team-selection">
 
@@ -649,7 +759,8 @@ function AdminDashboard({ adminName, onLogout }) {
 
             <div className="team-selection-grid">
 
-              {Object.keys(teams).length === 0 ? (
+              {Object.keys(teams)
+                .length === 0 ? (
 
                 <div className="no-teams">
                   No teams have joined yet.
@@ -657,14 +768,21 @@ function AdminDashboard({ adminName, onLogout }) {
 
               ) : (
 
-                Object.entries(teams).map(
-                  ([teamName, team]) => {
+                Object.entries(
+                  teams
+                ).map(
+                  ([
+                    teamName,
+                    team,
+                  ]) => {
 
                     const isSelected =
-                      highestTeam === teamName;
+                      highestTeam ===
+                      teamName;
 
                     const isFull =
-                      team.players.length >=
+                      team.players
+                        .length >=
                       MAX_PLAYERS;
 
                     const insufficientBudget =
@@ -673,14 +791,18 @@ function AdminDashboard({ adminName, onLogout }) {
 
                     return (
                       <button
-                        key={teamName}
+                        key={
+                          teamName
+                        }
                         className={`team-select-card ${
                           isSelected
                             ? "selected"
                             : ""
                         }`}
                         onClick={() =>
-                          selectTeam(teamName)
+                          selectTeam(
+                            teamName
+                          )
                         }
                         disabled={
                           !auctionLive ||
@@ -713,8 +835,13 @@ function AdminDashboard({ adminName, onLogout }) {
                           </span>
 
                           <span>
-                            {team.players.length}
-                            /{MAX_PLAYERS}
+                            {
+                              team
+                                .players
+                                .length
+                            }
+                            /
+                            {MAX_PLAYERS}
                           </span>
 
                         </div>
@@ -723,39 +850,47 @@ function AdminDashboard({ adminName, onLogout }) {
                     );
                   }
                 )
-
               )}
 
             </div>
 
           </div>
 
-          {/* ACTIONS */}
-
           <div className="auction-actions">
 
             <button
               className="auction-btn unsold"
-              onClick={markUnsold}
-              disabled={!auctionLive}
+              onClick={
+                markUnsold
+              }
+              disabled={
+                !auctionLive
+              }
             >
               ❌ UNSOLD
             </button>
 
             <button
               className="auction-btn next"
-              onClick={moveToNextPlayer}
-              disabled={auctionLive}
+              onClick={
+                moveToNextPlayer
+              }
+              disabled={
+                auctionLive
+              }
             >
               ⏭ NEXT PLAYER
             </button>
 
             <button
               className="auction-btn sold"
-              onClick={sellPlayer}
+              onClick={
+                sellPlayer
+              }
               disabled={
                 !auctionLive ||
-                highestTeam === "No Team"
+                highestTeam ===
+                  "No Team"
               }
             >
               🏆 SOLD
@@ -791,11 +926,14 @@ function AdminDashboard({ adminName, onLogout }) {
 
         <button
           className="next-phase-btn"
-          onClick={moveToNextPhase}
+          onClick={
+            moveToNextPhase
+          }
           disabled={
             auctionLive ||
             phaseIndex >=
-              AUCTION_PHASES.length - 1
+              AUCTION_PHASES.length -
+                1
           }
         >
           Next Phase
@@ -811,6 +949,7 @@ function AdminDashboard({ adminName, onLogout }) {
         <div className="list-section-header">
 
           <div>
+
             <span className="section-label">
               TOURNAMENT
             </span>
@@ -818,6 +957,7 @@ function AdminDashboard({ adminName, onLogout }) {
             <h2>
               Teams
             </h2>
+
           </div>
 
           <span className="list-count">
@@ -828,7 +968,8 @@ function AdminDashboard({ adminName, onLogout }) {
 
         <div className="teams-grid">
 
-          {Object.keys(teams).length === 0 ? (
+          {Object.keys(teams)
+            .length === 0 ? (
 
             <div className="empty-state">
 
@@ -847,12 +988,18 @@ function AdminDashboard({ adminName, onLogout }) {
 
           ) : (
 
-            Object.entries(teams).map(
-              ([teamName, team]) => (
+            Object.entries(
+              teams
+            ).map(
+              ([
+                teamName,
+                team,
+              ]) => (
 
                 <div
                   className={`admin-team-card ${
-                    highestTeam === teamName
+                    highestTeam ===
+                    teamName
                       ? "auction-selected-team"
                       : ""
                   }`}
@@ -875,7 +1022,8 @@ function AdminDashboard({ adminName, onLogout }) {
 
                     </div>
 
-                    {highestTeam === teamName && (
+                    {highestTeam ===
+                      teamName && (
                       <span className="winner-tag">
                         HIGHEST
                       </span>
@@ -886,7 +1034,9 @@ function AdminDashboard({ adminName, onLogout }) {
                   <div className="admin-team-stats">
 
                     <div>
-                      <span>BUDGET</span>
+                      <span>
+                        BUDGET
+                      </span>
 
                       <strong>
                         $
@@ -897,22 +1047,32 @@ function AdminDashboard({ adminName, onLogout }) {
                     </div>
 
                     <div>
-                      <span>PLAYERS</span>
+                      <span>
+                        PLAYERS
+                      </span>
 
                       <strong>
-                        {team.players.length}
-                        /{MAX_PLAYERS}
+                        {
+                          team.players
+                            .length
+                        }
+                        /
+                        {MAX_PLAYERS}
                       </strong>
                     </div>
 
                   </div>
 
-                  {team.players.length > 0 && (
+                  {team.players
+                    .length > 0 && (
 
                     <div className="team-player-list">
 
                       {team.players.map(
-                        (player, index) => (
+                        (
+                          player,
+                          index
+                        ) => (
 
                           <div
                             className="team-player-row"
@@ -957,6 +1117,7 @@ function AdminDashboard({ adminName, onLogout }) {
         <div className="list-section-header">
 
           <div>
+
             <span className="section-label">
               AUCTION RESULTS
             </span>
@@ -964,6 +1125,7 @@ function AdminDashboard({ adminName, onLogout }) {
             <h2>
               🏆 Sold Players
             </h2>
+
           </div>
 
           <span className="list-count">
@@ -972,10 +1134,13 @@ function AdminDashboard({ adminName, onLogout }) {
 
         </div>
 
-        {soldPlayers.length === 0 ? (
+        {soldPlayers.length ===
+        0 ? (
 
           <div className="empty-state compact">
-            <p>No players sold yet.</p>
+            <p>
+              No players sold yet.
+            </p>
           </div>
 
         ) : (
@@ -983,7 +1148,10 @@ function AdminDashboard({ adminName, onLogout }) {
           <div className="result-grid">
 
             {soldPlayers.map(
-              (player, index) => (
+              (
+                player,
+                index
+              ) => (
 
                 <div
                   className="result-card sold-card"
@@ -991,6 +1159,7 @@ function AdminDashboard({ adminName, onLogout }) {
                 >
 
                   <div>
+
                     <h3>
                       {player.name}
                     </h3>
@@ -998,11 +1167,14 @@ function AdminDashboard({ adminName, onLogout }) {
                     <span>
                       {player.position}
                     </span>
+
                   </div>
 
                   <div className="result-team">
 
-                    <small>TEAM</small>
+                    <small>
+                      TEAM
+                    </small>
 
                     <strong>
                       {player.team}
@@ -1035,6 +1207,7 @@ function AdminDashboard({ adminName, onLogout }) {
         <div className="list-section-header">
 
           <div>
+
             <span className="section-label">
               AUCTION RESULTS
             </span>
@@ -1042,6 +1215,7 @@ function AdminDashboard({ adminName, onLogout }) {
             <h2>
               ❌ Unsold Players
             </h2>
+
           </div>
 
           <span className="list-count">
@@ -1050,10 +1224,13 @@ function AdminDashboard({ adminName, onLogout }) {
 
         </div>
 
-        {unsoldPlayers.length === 0 ? (
+        {unsoldPlayers.length ===
+        0 ? (
 
           <div className="empty-state compact">
-            <p>No unsold players.</p>
+            <p>
+              No unsold players.
+            </p>
           </div>
 
         ) : (
@@ -1061,7 +1238,10 @@ function AdminDashboard({ adminName, onLogout }) {
           <div className="result-grid">
 
             {unsoldPlayers.map(
-              (player, index) => (
+              (
+                player,
+                index
+              ) => (
 
                 <div
                   className="result-card unsold-card"
@@ -1069,6 +1249,7 @@ function AdminDashboard({ adminName, onLogout }) {
                 >
 
                   <div>
+
                     <h3>
                       {player.name}
                     </h3>
@@ -1076,11 +1257,14 @@ function AdminDashboard({ adminName, onLogout }) {
                     <span>
                       {player.position}
                     </span>
+
                   </div>
 
                   <div className="result-team">
 
-                    <small>CATEGORY</small>
+                    <small>
+                      CATEGORY
+                    </small>
 
                     <strong>
                       {player.category}

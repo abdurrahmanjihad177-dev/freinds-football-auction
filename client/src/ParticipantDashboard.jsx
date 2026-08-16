@@ -3,13 +3,15 @@ import { io } from "socket.io-client";
 import players from "./players";
 import "./ParticipantDashboard.css";
 
-  const socket = io("https://friends-football-auction.onrender.com", {
-  transports: ["polling", "websocket"],
-  upgrade: true,
-  reconnection: true,
-  reconnectionAttempts: 10,
-  reconnectionDelay: 1000,
-});
+const socket = io(
+  "https://freinds-football-auction-1.onrender.com",
+  {
+    transports: ["websocket", "polling"],
+    reconnection: true,
+    reconnectionAttempts: 10,
+    reconnectionDelay: 1000,
+  }
+);
 
 const AUCTION_PHASES = [
   "Attackers",
@@ -19,20 +21,25 @@ const AUCTION_PHASES = [
 ];
 
 const MAX_PLAYERS = 7;
+const BID_INCREMENT = 100;
 
 function ParticipantDashboard({
   teamName,
   captainName,
   onLogout,
 }) {
-  const [currentBid, setCurrentBid] = useState(0);
+  const [currentBid, setCurrentBid] =
+    useState(0);
+
   const [highestTeam, setHighestTeam] =
     useState("No Team");
 
   const [auctionStatus, setAuctionStatus] =
     useState("waiting");
 
-  const [teams, setTeams] = useState({});
+  const [teams, setTeams] =
+    useState({});
+
   const [soldPlayers, setSoldPlayers] =
     useState([]);
 
@@ -51,7 +58,8 @@ function ParticipantDashboard({
   const phasePlayers = useMemo(() => {
     return players.filter(
       (player) =>
-        player.category === currentPhase
+        player.category ===
+        currentPhase
     );
   }, [currentPhase]);
 
@@ -59,99 +67,153 @@ function ParticipantDashboard({
     phasePlayers[playerIndex];
 
   const startingBid =
-    Number(currentPlayer?.startingBid) || 0;
+    Number(
+      currentPlayer?.startingBid
+    ) || 0;
 
   const auctionLive =
     auctionStatus === "live";
 
-  const myTeam = teams[teamName];
+  const myTeam =
+    teams[teamName];
 
   // =====================================
-  // JOIN SERVER
-  // =====================================
-
-  useEffect(() => {
-    if (!teamName || !captainName) return;
-
-    socket.emit("participant:join", {
-      teamName,
-      captainName,
-    });
-  }, [teamName, captainName]);
-
-  // =====================================
-  // SOCKET LISTENERS
+  // SOCKET CONNECTION + JOIN
   // =====================================
 
   useEffect(() => {
-    const handleTeamsUpdate = (data) => {
-      setTeams(data || {});
-    };
-
-    const handleAuctionState = (state) => {
-      setCurrentBid(
-        Number(state?.currentBid) || 0
+    const handleConnect = () => {
+      console.log(
+        "Participant connected:",
+        socket.id
       );
 
-      setHighestTeam(
-        state?.highestTeam ||
-          "No Team"
-      );
-
-      setAuctionStatus(
-        state?.auctionStatus ||
-          "waiting"
-      );
-
-      const serverPlayer =
-        state?.currentPlayer;
-
-      if (!serverPlayer) return;
-
-      const phase =
-        AUCTION_PHASES.findIndex(
-          (item) =>
-            item ===
-            serverPlayer.category
+      if (
+        teamName &&
+        captainName
+      ) {
+        socket.emit(
+          "participant:join",
+          {
+            teamName,
+            captainName,
+          }
         );
-
-      if (phase !== -1) {
-        setPhaseIndex(phase);
-
-        const playersInPhase =
-          players.filter(
-            (player) =>
-              player.category ===
-              serverPlayer.category
-          );
-
-        const index =
-          playersInPhase.findIndex(
-            (player) =>
-              player.id ===
-              serverPlayer.id
-          );
-
-        if (index !== -1) {
-          setPlayerIndex(index);
-        }
       }
     };
 
-    const handleSoldUpdate = (data) => {
-      setSoldPlayers(data || []);
-    };
-
-    const handleUnsoldUpdate = (data) => {
-      setUnsoldPlayers(data || []);
-    };
-
-    const handleError = (data) => {
-      alert(
-        data?.message ||
-          "Something went wrong."
+    const handleDisconnect = () => {
+      console.log(
+        "Participant disconnected"
       );
     };
+
+    const handleConnectError =
+      (error) => {
+        console.error(
+          "Socket connection error:",
+          error.message
+        );
+      };
+
+    const handleTeamsUpdate =
+      (data) => {
+        setTeams(data || {});
+      };
+
+    const handleAuctionState =
+      (state) => {
+        setCurrentBid(
+          Number(
+            state?.currentBid
+          ) || 0
+        );
+
+        setHighestTeam(
+          state?.highestTeam ||
+            "No Team"
+        );
+
+        setAuctionStatus(
+          state?.auctionStatus ||
+            "waiting"
+        );
+
+        const serverPlayer =
+          state?.currentPlayer;
+
+        if (!serverPlayer) return;
+
+        const phase =
+          AUCTION_PHASES.findIndex(
+            (item) =>
+              item ===
+              serverPlayer.category
+          );
+
+        if (phase !== -1) {
+          setPhaseIndex(
+            phase
+          );
+
+          const playersInPhase =
+            players.filter(
+              (player) =>
+                player.category ===
+                serverPlayer.category
+            );
+
+          const index =
+            playersInPhase.findIndex(
+              (player) =>
+                player.id ===
+                serverPlayer.id
+            );
+
+          if (index !== -1) {
+            setPlayerIndex(
+              index
+            );
+          }
+        }
+      };
+
+    const handleSoldUpdate =
+      (data) => {
+        setSoldPlayers(
+          data || []
+        );
+      };
+
+    const handleUnsoldUpdate =
+      (data) => {
+        setUnsoldPlayers(
+          data || []
+        );
+      };
+
+    const handleError =
+      (data) => {
+        alert(
+          data?.message ||
+            "Something went wrong."
+        );
+      };
+
+    socket.on(
+      "connect",
+      handleConnect
+    );
+
+    socket.on(
+      "disconnect",
+      handleDisconnect
+    );
+
+    socket.on(
+      "connect_error",
+      handleConnectError
+    );
 
     socket.on(
       "teams:update",
@@ -178,7 +240,36 @@ function ParticipantDashboard({
       handleError
     );
 
+    if (
+      socket.connected &&
+      teamName &&
+      captainName
+    ) {
+      socket.emit(
+        "participant:join",
+        {
+          teamName,
+          captainName,
+        }
+      );
+    }
+
     return () => {
+      socket.off(
+        "connect",
+        handleConnect
+      );
+
+      socket.off(
+        "disconnect",
+        handleDisconnect
+      );
+
+      socket.off(
+        "connect_error",
+        handleConnectError
+      );
+
       socket.off(
         "teams:update",
         handleTeamsUpdate
@@ -204,7 +295,10 @@ function ParticipantDashboard({
         handleError
       );
     };
-  }, []);
+  }, [
+    teamName,
+    captainName,
+  ]);
 
   // =====================================
   // BID
@@ -236,7 +330,8 @@ function ParticipantDashboard({
     }
 
     const nextBid =
-      currentBid + 100;
+      currentBid +
+      BID_INCREMENT;
 
     if (
       nextBid >
@@ -260,7 +355,9 @@ function ParticipantDashboard({
   // FORMAT
   // =====================================
 
-  const formatMoney = (value) => {
+  const formatMoney = (
+    value
+  ) => {
     return Number(
       value || 0
     ).toLocaleString();
@@ -297,7 +394,8 @@ function ParticipantDashboard({
           </h1>
 
           <p>
-            Captain: {captainName}
+            Captain:{" "}
+            {captainName}
           </p>
 
         </div>
@@ -312,12 +410,15 @@ function ParticipantDashboard({
             }`}
           >
             <span className="status-dot" />
+
             {statusLabel}
           </div>
 
           <button
             className="participant-logout-btn"
-            onClick={onLogout}
+            onClick={
+              onLogout
+            }
           >
             Logout
           </button>
@@ -331,7 +432,10 @@ function ParticipantDashboard({
       <section className="participant-summary">
 
         <div className="summary-card">
-          <span>AVAILABLE BUDGET</span>
+
+          <span>
+            AVAILABLE BUDGET
+          </span>
 
           <strong>
             $
@@ -339,23 +443,37 @@ function ParticipantDashboard({
               myTeam?.budget
             )}
           </strong>
+
         </div>
 
         <div className="summary-card">
-          <span>PLAYERS</span>
+
+          <span>
+            PLAYERS
+          </span>
 
           <strong>
-            {myTeam?.players?.length || 0}
-            /{MAX_PLAYERS}
+            {
+              myTeam
+                ?.players
+                ?.length || 0
+            }
+            /
+            {MAX_PLAYERS}
           </strong>
+
         </div>
 
         <div className="summary-card">
-          <span>PLAYERS SOLD</span>
+
+          <span>
+            PLAYERS SOLD
+          </span>
 
           <strong>
             {soldPlayers.length}
           </strong>
+
         </div>
 
       </section>
@@ -391,7 +509,10 @@ function ParticipantDashboard({
                 {playerIndex + 1}
 
                 <small>
-                  / {phasePlayers.length}
+                  /{" "}
+                  {
+                    phasePlayers.length
+                  }
                 </small>
 
               </div>
@@ -401,23 +522,38 @@ function ParticipantDashboard({
             <div className="participant-player-info">
 
               <div>
-                <span>CATEGORY</span>
+
+                <span>
+                  CATEGORY
+                </span>
 
                 <strong>
-                  {currentPlayer.category}
+                  {
+                    currentPlayer.category
+                  }
                 </strong>
+
               </div>
 
               <div>
-                <span>TIER</span>
+
+                <span>
+                  TIER
+                </span>
 
                 <strong>
-                  {currentPlayer.tier}
+                  {
+                    currentPlayer.tier
+                  }
                 </strong>
+
               </div>
 
               <div>
-                <span>STARTING BID</span>
+
+                <span>
+                  STARTING BID
+                </span>
 
                 <strong>
                   $
@@ -425,6 +561,7 @@ function ParticipantDashboard({
                     startingBid
                   )}
                 </strong>
+
               </div>
 
             </div>
@@ -439,7 +576,7 @@ function ParticipantDashboard({
                 $
                 {formatMoney(
                   currentBid ||
-                  startingBid
+                    startingBid
                 )}
               </strong>
 
@@ -459,7 +596,8 @@ function ParticipantDashboard({
                     : ""
                 }
               >
-                {highestTeam === teamName
+                {highestTeam ===
+                teamName
                   ? "YOUR TEAM"
                   : highestTeam}
               </strong>
@@ -468,20 +606,29 @@ function ParticipantDashboard({
 
             <button
               className="place-bid-btn"
-              onClick={placeBid}
+              onClick={
+                placeBid
+              }
               disabled={
                 !auctionLive ||
                 !myTeam ||
-                myTeam.players.length >=
+                myTeam.players
+                  .length >=
                   MAX_PLAYERS ||
-                currentBid + 100 >
+                currentBid +
+                  BID_INCREMENT >
                   myTeam.budget
               }
             >
               🔨 PLACE BID
+
               <span>
-                +$100
+                +$
+                {
+                  BID_INCREMENT
+                }
               </span>
+
             </button>
 
             {!auctionLive && (
@@ -497,7 +644,9 @@ function ParticipantDashboard({
 
           <div className="participant-waiting">
 
-            <div>⚽</div>
+            <div>
+              ⚽
+            </div>
 
             <h2>
               Waiting for Player
@@ -521,16 +670,25 @@ function ParticipantDashboard({
         <div className="participant-section-header">
 
           <div>
-            <span>YOUR TEAM</span>
+
+            <span>
+              YOUR TEAM
+            </span>
 
             <h2>
               My Squad
             </h2>
+
           </div>
 
           <strong>
-            {myTeam?.players?.length || 0}
-            /{MAX_PLAYERS}
+            {
+              myTeam
+                ?.players
+                ?.length || 0
+            }
+            /
+            {MAX_PLAYERS}
           </strong>
 
         </div>
@@ -540,7 +698,10 @@ function ParticipantDashboard({
           <div className="my-squad-grid">
 
             {myTeam.players.map(
-              (player, index) => (
+              (
+                player,
+                index
+              ) => (
 
                 <div
                   className="squad-player-card"
@@ -548,6 +709,7 @@ function ParticipantDashboard({
                 >
 
                   <div>
+
                     <h3>
                       {player.name}
                     </h3>
@@ -555,6 +717,7 @@ function ParticipantDashboard({
                     <span>
                       {player.position}
                     </span>
+
                   </div>
 
                   <strong>
@@ -588,29 +751,44 @@ function ParticipantDashboard({
         <div className="participant-section-header">
 
           <div>
-            <span>TOURNAMENT</span>
+
+            <span>
+              TOURNAMENT
+            </span>
 
             <h2>
               All Teams
             </h2>
+
           </div>
 
           <strong>
-            {Object.keys(teams).length}
+            {
+              Object.keys(
+                teams
+              ).length
+            }
           </strong>
 
         </div>
 
         <div className="other-teams-grid">
 
-          {Object.entries(teams).map(
-            ([name, team]) => {
+          {Object.entries(
+            teams
+          ).map(
+            ([
+              name,
+              team,
+            ]) => {
 
               const isMine =
-                name === teamName;
+                name ===
+                teamName;
 
               const isHighest =
-                name === highestTeam;
+                name ===
+                highestTeam;
 
               return (
                 <div
@@ -635,7 +813,9 @@ function ParticipantDashboard({
                       </h3>
 
                       <p>
-                        {team.captainName}
+                        {
+                          team.captainName
+                        }
                       </p>
 
                     </div>
@@ -651,7 +831,10 @@ function ParticipantDashboard({
                   <div className="other-team-stats">
 
                     <div>
-                      <small>BUDGET</small>
+
+                      <small>
+                        BUDGET
+                      </small>
 
                       <strong>
                         $
@@ -659,15 +842,24 @@ function ParticipantDashboard({
                           team.budget
                         )}
                       </strong>
+
                     </div>
 
                     <div>
-                      <small>PLAYERS</small>
+
+                      <small>
+                        PLAYERS
+                      </small>
 
                       <strong>
-                        {team.players.length}
-                        /{MAX_PLAYERS}
+                        {
+                          team.players
+                            .length
+                        }
+                        /
+                        {MAX_PLAYERS}
                       </strong>
+
                     </div>
 
                   </div>
@@ -688,6 +880,7 @@ function ParticipantDashboard({
         <div className="participant-section-header">
 
           <div>
+
             <span>
               AUCTION RESULTS
             </span>
@@ -695,6 +888,7 @@ function ParticipantDashboard({
             <h2>
               Sold Players
             </h2>
+
           </div>
 
           <strong>
@@ -703,7 +897,8 @@ function ParticipantDashboard({
 
         </div>
 
-        {soldPlayers.length === 0 ? (
+        {soldPlayers.length ===
+        0 ? (
 
           <div className="participant-empty">
             No players sold yet.
@@ -714,7 +909,10 @@ function ParticipantDashboard({
           <div className="participant-results-grid">
 
             {soldPlayers.map(
-              (player, index) => (
+              (
+                player,
+                index
+              ) => (
 
                 <div
                   className={`participant-result-card ${
@@ -727,6 +925,7 @@ function ParticipantDashboard({
                 >
 
                   <div>
+
                     <h3>
                       {player.name}
                     </h3>
@@ -734,14 +933,19 @@ function ParticipantDashboard({
                     <span>
                       {player.position}
                     </span>
+
                   </div>
 
                   <div>
-                    <small>TEAM</small>
+
+                    <small>
+                      TEAM
+                    </small>
 
                     <strong>
                       {player.team}
                     </strong>
+
                   </div>
 
                   <strong>
@@ -769,6 +973,7 @@ function ParticipantDashboard({
         <div className="participant-section-header">
 
           <div>
+
             <span>
               AUCTION RESULTS
             </span>
@@ -776,6 +981,7 @@ function ParticipantDashboard({
             <h2>
               Unsold Players
             </h2>
+
           </div>
 
           <strong>
@@ -784,7 +990,8 @@ function ParticipantDashboard({
 
         </div>
 
-        {unsoldPlayers.length === 0 ? (
+        {unsoldPlayers.length ===
+        0 ? (
 
           <div className="participant-empty">
             No unsold players yet.
@@ -795,7 +1002,10 @@ function ParticipantDashboard({
           <div className="participant-results-grid">
 
             {unsoldPlayers.map(
-              (player, index) => (
+              (
+                player,
+                index
+              ) => (
 
                 <div
                   className="participant-result-card"
@@ -803,6 +1013,7 @@ function ParticipantDashboard({
                 >
 
                   <div>
+
                     <h3>
                       {player.name}
                     </h3>
@@ -810,14 +1021,19 @@ function ParticipantDashboard({
                     <span>
                       {player.position}
                     </span>
+
                   </div>
 
                   <div>
-                    <small>CATEGORY</small>
+
+                    <small>
+                      CATEGORY
+                    </small>
 
                     <strong>
                       {player.category}
                     </strong>
+
                   </div>
 
                   <strong className="unsold-text">
