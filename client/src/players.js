@@ -1,11 +1,11 @@
- const players = [
+const players = [
   // =====================================
-  // CF — 8 PLAYERS
+  // ATTACKERS
   // =====================================
 
   {
     id: 1,
-    name: "Player 01",
+    name: "Mahadi",
     position: "CF",
     category: "Attackers",
     tier: "TOP STAR",
@@ -13,7 +13,7 @@
   },
   {
     id: 2,
-    name: "Player 02",
+    name: "Rupom",
     position: "CF",
     category: "Attackers",
     tier: "TOP STAR",
@@ -21,7 +21,7 @@
   },
   {
     id: 3,
-    name: "Player 03",
+    name: "Jahidul",
     position: "CF",
     category: "Attackers",
     tier: "TOP STAR",
@@ -29,7 +29,7 @@
   },
   {
     id: 4,
-    name: "Player 04",
+    name: "Shurjo frnd",
     position: "CF",
     category: "Attackers",
     tier: "TOP STAR",
@@ -37,7 +37,7 @@
   },
   {
     id: 5,
-    name: "Player 05",
+    name: "Bappy",
     position: "CF",
     category: "Attackers",
     tier: "UNDERDOG",
@@ -45,36 +45,36 @@
   },
   {
     id: 6,
-    name: "Player 06",
+    name: "Sanjan",
     position: "CF",
     category: "Attackers",
     tier: "UNDERDOG",
     startingBid: 500,
   },
+
+  // =====================================
+  // MIDFIELDERS
+  // =====================================
+
   {
     id: 7,
-    name: "Player 07",
-    position: "CF",
-    category: "Attackers",
-    tier: "UNDERDOG",
-    startingBid: 500,
+    name: "Rabbin",
+    position: "CMF",
+    category: "Midfielders",
+    tier: "TOP STAR",
+    startingBid: 1000,
   },
   {
     id: 8,
-    name: "Player 08",
-    position: "CF",
-    category: "Attackers",
-    tier: "UNDERDOG",
-    startingBid: 500,
+    name: "Afrahim",
+    position: "CMF",
+    category: "Midfielders",
+    tier: "TOP STAR",
+    startingBid: 1000,
   },
-
-  // =====================================
-  // CMF — 8 PLAYERS
-  // =====================================
-
   {
     id: 9,
-    name: "Player 09",
+    name: "Miraz",
     position: "CMF",
     category: "Midfielders",
     tier: "TOP STAR",
@@ -82,7 +82,7 @@
   },
   {
     id: 10,
-    name: "Player 10",
+    name: "Limon",
     position: "CMF",
     category: "Midfielders",
     tier: "TOP STAR",
@@ -90,60 +90,60 @@
   },
   {
     id: 11,
-    name: "Player 11",
+    name: "Mohon",
     position: "CMF",
     category: "Midfielders",
-    tier: "TOP STAR",
-    startingBid: 1000,
+    tier: "UNDERDOG",
+    startingBid: 500,
   },
   {
     id: 12,
-    name: "Player 12",
+    name: "Sazzad",
     position: "CMF",
     category: "Midfielders",
+    tier: "UNDERDOG",
+    startingBid: 500,
+  },
+  {
+    id: 13,
+    name: "Opu",
+    position: "CMF",
+    category: "Midfielders",
+    tier: "UNDERDOG",
+    startingBid: 500,
+  },
+
+  // =====================================
+  // DEFENDERS
+  // =====================================
+
+  {
+    id: 14,
+    name: "Siam",
+    position: "CB",
+    category: "Defenders",
     tier: "TOP STAR",
     startingBid: 1000,
   },
   {
-    id: 13,
-    name: "Player 13",
-    position: "CMF",
-    category: "Midfielders",
-    tier: "UNDERDOG",
-    startingBid: 500,
-  },
-  {
-    id: 14,
-    name: "Player 14",
-    position: "CMF",
-    category: "Midfielders",
-    tier: "UNDERDOG",
-    startingBid: 500,
-  },
-  {
     id: 15,
-    name: "Player 15",
-    position: "CMF",
-    category: "Midfielders",
-    tier: "UNDERDOG",
-    startingBid: 500,
+    name: "Sakib",
+    position: "CB",
+    category: "Defenders",
+    tier: "TOP STAR",
+    startingBid: 1000,
   },
   {
     id: 16,
-    name: "Player 16",
-    position: "CMF",
-    category: "Midfielders",
-    tier: "UNDERDOG",
-    startingBid: 500,
+    name: "Shurjo frnd2",
+    position: "CB",
+    category: "Defenders",
+    tier: "TOP STAR",
+    startingBid: 1000,
   },
-
-  // =====================================
-  // CB — 8 PLAYERS
-  // =====================================
-
   {
     id: 17,
-    name: "Player 17",
+    name: "Rohan",
     position: "CB",
     category: "Defenders",
     tier: "TOP STAR",
@@ -151,96 +151,64 @@
   },
   {
     id: 18,
-    name: "Player 18",
+    name: "Rumman",
     position: "CB",
     category: "Defenders",
-    tier: "TOP STAR",
-    startingBid: 1000,
+    tier: "UNDERDOG",
+    startingBid: 500,
   },
   {
     id: 19,
-    name: "Player 19",
+    name: "Abdullah",
     position: "CB",
     category: "Defenders",
-    tier: "TOP STAR",
-    startingBid: 1000,
+    tier: "UNDERDOG",
+    startingBid: 500,
   },
   {
     id: 20,
-    name: "Player 20",
-    position: "CB",
-    category: "Defenders",
-    tier: "TOP STAR",
-    startingBid: 1000,
-  },
-  {
-    id: 21,
-    name: "Player 21",
+    name: "Shishir",
     position: "CB",
     category: "Defenders",
     tier: "UNDERDOG",
     startingBid: 500,
+  },
+
+  // =====================================
+  // GOALKEEPERS
+  // =====================================
+
+  {
+    id: 21,
+    name: "Tanzib",
+    position: "GK",
+    category: "Goalkeepers",
+    tier: "TOP STAR",
+    startingBid: 1000,
   },
   {
     id: 22,
-    name: "Player 22",
-    position: "CB",
-    category: "Defenders",
-    tier: "UNDERDOG",
-    startingBid: 500,
+    name: "Maruf",
+    position: "GK",
+    category: "Goalkeepers",
+    tier: "TOP STAR",
+    startingBid: 1000,
   },
   {
     id: 23,
-    name: "Player 23",
-    position: "CB",
-    category: "Defenders",
+    name: "Sayed",
+    position: "GK",
+    category: "Goalkeepers",
     tier: "UNDERDOG",
-    startingBid: 500,
+    startingBid: 1000,
   },
   {
     id: 24,
-    name: "Player 24",
-    position: "CB",
-    category: "Defenders",
-    tier: "UNDERDOG",
-    startingBid: 500,
-  },
-
-  // =====================================
-  // GK — 4 PLAYERS
-  // =====================================
-
-  {
-    id: 25,
-    name: "Player 25",
+    name: "New GK",
     position: "GK",
     category: "Goalkeepers",
-    tier: "TOP STAR",
+    tier: "UNDERDOG",
     startingBid: 1000,
-  },
-  {
-    id: 26,
-    name: "Player 26",
-    position: "GK",
-    category: "Goalkeepers",
-    tier: "TOP STAR",
-    startingBid: 1000,
-  },
-  {
-    id: 27,
-    name: "Player 27",
-    position: "GK",
-    category: "Goalkeepers",
-    tier: "UNDERDOG",
-    startingBid: 500,
-  },
-  {
-    id: 28,
-    name: "Player 28",
-    position: "GK",
-    category: "Goalkeepers",
-    tier: "UNDERDOG",
-    startingBid: 500,
   },
 ];
 
