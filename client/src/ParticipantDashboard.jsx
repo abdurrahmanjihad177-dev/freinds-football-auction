@@ -3,8 +3,12 @@ import { io } from "socket.io-client";
 import players from "./players";
 import "./ParticipantDashboard.css";
 
- const socket = io("https://friends-football-auction.onrender.com", {
-  transports: ["websocket"],
+  const socket = io("https://friends-football-auction.onrender.com", {
+  transports: ["polling", "websocket"],
+  upgrade: true,
+  reconnection: true,
+  reconnectionAttempts: 10,
+  reconnectionDelay: 1000,
 });
 
 const AUCTION_PHASES = [
