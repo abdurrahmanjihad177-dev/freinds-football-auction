@@ -3,7 +3,9 @@ import { io } from "socket.io-client";
 import players from "./players";
 import "./AdminDashboard.css";
 
-const socket = io("https://friends-football-auction.onrender.com");
+ const socket = io("https://friends-football-auction.onrender.com", {
+  transports: ["websocket"],
+});
 const AUCTION_PHASES = [
   "Attackers",
   "Midfielders",
