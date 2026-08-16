@@ -3,7 +3,7 @@ import { io } from "socket.io-client";
 import players from "./players";
 import "./ParticipantDashboard.css";
 
-const socket = io("http://localhost:5000");
+const socket =  io("https://friends-football-auction.onrender.com")
 
 const AUCTION_PHASES = [
   "Attackers",
