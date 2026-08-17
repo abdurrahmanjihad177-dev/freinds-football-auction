@@ -4,10 +4,6 @@ import ParticipantDashboard from "./ParticipantDashboard";
 import "./App.css";
 
 function App() {
-  // ================================
-  // RESTORE LOGIN AFTER REFRESH
-  // ================================
-
   const savedSession = JSON.parse(
     localStorage.getItem("auctionSession") || "null"
   );
@@ -28,20 +24,12 @@ function App() {
     savedSession?.captainName || ""
   );
 
-  // ================================
-  // SAVE SESSION
-  // ================================
-
   const saveSession = (session) => {
     localStorage.setItem(
       "auctionSession",
       JSON.stringify(session)
     );
   };
-
-  // ================================
-  // ADMIN LOGIN
-  // ================================
 
   const handleAdminLogin = (e) => {
     e.preventDefault();
@@ -64,10 +52,6 @@ function App() {
     });
   };
 
-  // ================================
-  // PARTICIPANT LOGIN
-  // ================================
-
   const handleParticipantLogin = (e) => {
     e.preventDefault();
 
@@ -75,9 +59,7 @@ function App() {
     const captain = captainName.trim();
 
     if (!team || !captain) {
-      alert(
-        "Please enter Team Name and Captain Name."
-      );
+      alert("Please enter Team Name and Captain Name.");
       return;
     }
 
@@ -93,10 +75,6 @@ function App() {
     });
   };
 
-  // ================================
-  // LOGOUT
-  // ================================
-
   const logout = () => {
     localStorage.removeItem("auctionSession");
 
@@ -106,10 +84,6 @@ function App() {
     setScreen("login");
   };
 
-  // ================================
-  // ADMIN DASHBOARD
-  // ================================
-
   if (screen === "admin") {
     return (
       <AdminDashboard
@@ -118,10 +92,6 @@ function App() {
       />
     );
   }
-
-  // ================================
-  // PARTICIPANT DASHBOARD
-  // ================================
 
   if (screen === "participant") {
     return (
@@ -133,36 +103,22 @@ function App() {
     );
   }
 
-  // ================================
-  // LOGIN PAGE
-  // ================================
-
   return (
     <div className="app-page">
       <div className="login-card">
-
-        {/* BRAND */}
 
         <div className="login-brand">
           <span>FRIENDS FOOTBALL</span>
           <strong>AUCTION</strong>
         </div>
 
-        {/* HEADING */}
-
         <div className="login-heading">
           <p>LIVE FOOTBALL AUCTION</p>
-
           <h1>Welcome</h1>
-
           <span>
             Choose your access and join the auction.
           </span>
         </div>
-
-        {/* ================================
-            ADMIN
-        ================================= */}
 
         <form
           className="login-form"
@@ -192,15 +148,9 @@ function App() {
           </button>
         </form>
 
-        {/* DIVIDER */}
-
         <div className="login-divider">
           <span>OR</span>
         </div>
-
-        {/* ================================
-            PARTICIPANT
-        ================================= */}
 
         <form
           className="login-form"
@@ -240,8 +190,6 @@ function App() {
             <span>→</span>
           </button>
         </form>
-
-        {/* FOOTER */}
 
         <div className="login-footer">
           FRIENDS FOOTBALL AUCTION

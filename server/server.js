@@ -16,18 +16,10 @@ const io = new Server(server, {
 app.use(cors());
 app.use(express.json());
 
-// =====================================
-// CONFIG
-// =====================================
-
 const PORT = process.env.PORT || 5000;
 const MAX_PLAYERS = 7;
 const STARTING_BUDGET = 10000;
 const BID_INCREMENT = 100;
-
-// =====================================
-// DATA
-// =====================================
 
 const teams = {};
 const participants = new Map();
@@ -42,99 +34,56 @@ let auctionState = {
   auctionStatus: "waiting",
 };
 
-// =====================================
-// HELPERS
-// =====================================
-
-function emitTeams() {
+function emitAll() {
   io.emit("teams:update", teams);
-}
 
-function emitParticipants() {
-  const data = Array.from(participants.values()).map(
-    (participant) => ({
-      teamName: participant.teamName,
-      captainName: participant.captainName,
-      online: participant.online,
-    })
+  io.emit(
+    "participants:update",
+    Array.from(participants.values()).map((p) => ({
+      teamName: p.teamName,
+      captainName: p.captainName,
+      online: p.online,
+    }))
   );
 
-  io.emit("participants:update", data);
-}
-
-function emitAuctionState() {
   io.emit("auction:state", auctionState);
-}
-
-function emitResults() {
   io.emit("sold:update", soldPlayers);
   io.emit("unsold:update", unsoldPlayers);
 }
 
-function resetAuctionState() {
-  auctionState = {
-    currentPlayer: null,
-    currentBid: 0,
-    highestTeam: "No Team",
-    auctionStatus: "waiting",
-  };
-}
-
-// =====================================
-// HOME
-// =====================================
-
 app.get("/", (req, res) => {
   res.json({
     message: "Friends Football Auction Server Running",
+    status: "online",
   });
 });
 
-// =====================================
-// SOCKET
-// =====================================
-
 io.on("connection", (socket) => {
-  console.log("Connected:", socket.id);
+  console.log("Socket connected:", socket.id);
 
-  // ===================================
   // ADMIN JOIN
-  // ===================================
-
   socket.on("admin:join", () => {
+    socket.data.isAdmin = true;
+
     socket.join("admin");
 
-    emitAuctionState();
-    emitTeams();
-    emitParticipants();
-    emitResults();
+    emitAll();
 
     console.log("Admin connected:", socket.id);
   });
 
-  // ===================================
   // PARTICIPANT JOIN
-  // ===================================
-
   socket.on("participant:join", (data) => {
-    const teamName = String(
-      data?.teamName || ""
-    ).trim();
-
-    const captainName = String(
-      data?.captainName || ""
-    ).trim();
+    const teamName = String(data?.teamName || "").trim();
+    const captainName = String(data?.captainName || "").trim();
 
     if (!teamName || !captainName) {
       socket.emit("participant:error", {
-        message:
-          "Team name and captain name are required.",
+        message: "Team name and captain name are required.",
       });
-
       return;
     }
 
-    // Create team
     if (!teams[teamName]) {
       teams[teamName] = {
         teamName,
@@ -154,48 +103,35 @@ io.on("connection", (socket) => {
 
     socket.data.teamName = teamName;
 
-    emitTeams();
-    emitParticipants();
-    emitAuctionState();
-    emitResults();
+    emitAll();
 
     console.log(
-      `${captainName} joined as ${teamName}`
+      `Participant connected: ${captainName} → ${teamName}`
     );
   });
 
-  // ===================================
   // START AUCTION
-  // ===================================
-
   socket.on("auction:start", (data) => {
     if (!data?.player) {
+      console.log("No player received.");
       return;
     }
 
     const player = data.player;
 
-    const startingBid =
-      Number(player.startingBid) || 0;
-
     auctionState = {
       currentPlayer: player,
-      currentBid: startingBid,
+      currentBid: Number(player.startingBid) || 0,
       highestTeam: "No Team",
       auctionStatus: "live",
     };
 
-    emitAuctionState();
+    emitAll();
 
-    console.log(
-      `Auction started: ${player.name}`
-    );
+    console.log(`Auction started: ${player.name}`);
   });
 
-  // ===================================
-  // PARTICIPANT BID
-  // ===================================
-
+  // BID
   socket.on("auction:bid", (data) => {
     if (auctionState.auctionStatus !== "live") {
       return;
@@ -205,10 +141,8 @@ io.on("connection", (socket) => {
 
     if (!teamName || !teams[teamName]) {
       socket.emit("participant:error", {
-        message:
-          "You are not connected to a team.",
+        message: "You are not connected to a team.",
       });
-
       return;
     }
 
@@ -216,10 +150,8 @@ io.on("connection", (socket) => {
 
     if (team.players.length >= MAX_PLAYERS) {
       socket.emit("participant:error", {
-        message:
-          "Your team already has maximum players.",
+        message: "Your team already has maximum players.",
       });
-
       return;
     }
 
@@ -229,45 +161,32 @@ io.on("connection", (socket) => {
       return;
     }
 
-    if (amount <= auctionState.currentBid) {
-      return;
-    }
-
-    if (
-      amount !==
-      auctionState.currentBid + BID_INCREMENT
-    ) {
+    if (amount !== auctionState.currentBid + BID_INCREMENT) {
       return;
     }
 
     if (amount > team.budget) {
       socket.emit("participant:error", {
-        message:
-          "Your team does not have enough budget.",
+        message: "Your team does not have enough budget.",
       });
-
       return;
     }
 
     auctionState.currentBid = amount;
     auctionState.highestTeam = teamName;
 
-    emitAuctionState();
+    emitAll();
+
+    console.log(`${teamName} bid ${amount}`);
   });
 
-  // ===================================
   // ADMIN SELECT TEAM
-  // ===================================
-
   socket.on("auction:select-team", (data) => {
     if (auctionState.auctionStatus !== "live") {
       return;
     }
 
-    const teamName = String(
-      data?.teamName || ""
-    ).trim();
-
+    const teamName = String(data?.teamName || "").trim();
     const team = teams[teamName];
 
     if (!team) {
@@ -284,13 +203,10 @@ io.on("connection", (socket) => {
 
     auctionState.highestTeam = teamName;
 
-    emitAuctionState();
+    emitAll();
   });
 
-  // ===================================
   // SOLD
-  // ===================================
-
   socket.on("auction:sold", () => {
     if (auctionState.auctionStatus !== "live") {
       return;
@@ -299,11 +215,7 @@ io.on("connection", (socket) => {
     const player = auctionState.currentPlayer;
     const teamName = auctionState.highestTeam;
 
-    if (
-      !player ||
-      !teamName ||
-      teamName === "No Team"
-    ) {
+    if (!player || teamName === "No Team") {
       return;
     }
 
@@ -330,26 +242,20 @@ io.on("connection", (socket) => {
     };
 
     team.players.push(purchasedPlayer);
-
     team.budget -= price;
 
     soldPlayers.push(purchasedPlayer);
 
     auctionState.auctionStatus = "sold";
 
-    emitTeams();
-    emitResults();
-    emitAuctionState();
+    emitAll();
 
     console.log(
       `${player.name} sold to ${teamName} for ${price}`
     );
   });
 
-  // ===================================
   // UNSOLD
-  // ===================================
-
   socket.on("auction:unsold", () => {
     if (auctionState.auctionStatus !== "live") {
       return;
@@ -368,56 +274,44 @@ io.on("connection", (socket) => {
 
     auctionState.auctionStatus = "unsold";
 
-    emitResults();
-    emitAuctionState();
+    emitAll();
 
-    console.log(
-      `${player.name} marked unsold`
-    );
+    console.log(`${player.name} marked unsold`);
   });
 
-  // ===================================
   // RESET
-  // ===================================
-
   socket.on("auction:reset", () => {
-    resetAuctionState();
+    auctionState = {
+      currentPlayer: null,
+      currentBid: 0,
+      highestTeam: "No Team",
+      auctionStatus: "waiting",
+    };
 
-    emitAuctionState();
+    emitAll();
+
+    console.log("Auction reset");
   });
 
-  // ===================================
   // DISCONNECT
-  // ===================================
-
   socket.on("disconnect", () => {
-    const participant =
-      participants.get(socket.id);
+    const participant = participants.get(socket.id);
 
     if (participant) {
       participant.online = false;
+      participants.set(socket.id, participant);
 
-      participants.set(
-        socket.id,
-        participant
+      emitAll();
+
+      console.log(
+        `Participant disconnected: ${participant.teamName}`
       );
-
-      emitParticipants();
+    } else {
+      console.log("Socket disconnected:", socket.id);
     }
-
-    console.log(
-      "Disconnected:",
-      socket.id
-    );
   });
 });
 
-// =====================================
-// START SERVER
-// =====================================
-
 server.listen(PORT, "0.0.0.0", () => {
-  console.log(
-    `🚀 Auction server running on port ${PORT}`
-  );
+  console.log(`Auction server running on port ${PORT}`);
 });

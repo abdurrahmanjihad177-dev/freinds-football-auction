@@ -1,17 +1,15 @@
-  import { useEffect, useMemo, useState } from "react";
+   import { useEffect, useMemo, useState } from "react";
 import { io } from "socket.io-client";
 import players from "./players";
 import "./ParticipantDashboard.css";
 
-const socket = io(
-  "https://freinds-football-auction-1.onrender.com",
-  {
-    transports: ["websocket", "polling"],
-    reconnection: true,
-    reconnectionAttempts: 10,
-    reconnectionDelay: 1000,
-  }
-);
+ const socket = io("https://freinds-football-auction-1.onrender.com", {
+  transports: ["polling", "websocket"],
+  upgrade: true,
+  reconnection: true,
+  reconnectionAttempts: 10,
+  reconnectionDelay: 1000,
+});
 
 const AUCTION_PHASES = [
   "Attackers",
@@ -21,25 +19,20 @@ const AUCTION_PHASES = [
 ];
 
 const MAX_PLAYERS = 7;
-const BID_INCREMENT = 100;
 
 function ParticipantDashboard({
   teamName,
   captainName,
   onLogout,
 }) {
-  const [currentBid, setCurrentBid] =
-    useState(0);
-
+  const [currentBid, setCurrentBid] = useState(0);
   const [highestTeam, setHighestTeam] =
     useState("No Team");
 
   const [auctionStatus, setAuctionStatus] =
     useState("waiting");
 
-  const [teams, setTeams] =
-    useState({});
-
+  const [teams, setTeams] = useState({});
   const [soldPlayers, setSoldPlayers] =
     useState([]);
 
@@ -58,8 +51,7 @@ function ParticipantDashboard({
   const phasePlayers = useMemo(() => {
     return players.filter(
       (player) =>
-        player.category ===
-        currentPhase
+        player.category === currentPhase
     );
   }, [currentPhase]);
 
@@ -67,31 +59,22 @@ function ParticipantDashboard({
     phasePlayers[playerIndex];
 
   const startingBid =
-    Number(
-      currentPlayer?.startingBid
-    ) || 0;
+    Number(currentPlayer?.startingBid) || 0;
 
   const auctionLive =
     auctionStatus === "live";
 
-  const myTeam =
-    teams[teamName];
+  const myTeam = teams[teamName];
 
-  // =====================================
-  // SOCKET CONNECTION + JOIN
-  // =====================================
-
+  // JOIN
   useEffect(() => {
-    const handleConnect = () => {
+    const join = () => {
       console.log(
-        "Participant connected:",
+        "PARTICIPANT SOCKET CONNECTED:",
         socket.id
       );
 
-      if (
-        teamName &&
-        captainName
-      ) {
+      if (teamName && captainName) {
         socket.emit(
           "participant:join",
           {
@@ -102,122 +85,73 @@ function ParticipantDashboard({
       }
     };
 
-    const handleDisconnect = () => {
-      console.log(
-        "Participant disconnected"
-      );
+    socket.on("connect", join);
+
+    if (socket.connected) {
+      join();
+    }
+
+    return () => {
+      socket.off("connect", join);
     };
+  }, [teamName, captainName]);
 
-    const handleConnectError =
-      (error) => {
-        console.error(
-          "Socket connection error:",
-          error.message
-        );
-      };
+  // LISTENERS
+  useEffect(() => {
+    const handleAuctionState = (state) => {
+      setCurrentBid(
+        Number(state?.currentBid) || 0
+      );
 
-    const handleTeamsUpdate =
-      (data) => {
-        setTeams(data || {});
-      };
+      setHighestTeam(
+        state?.highestTeam ||
+          "No Team"
+      );
 
-    const handleAuctionState =
-      (state) => {
-        setCurrentBid(
-          Number(
-            state?.currentBid
-          ) || 0
-        );
+      setAuctionStatus(
+        state?.auctionStatus ||
+          "waiting"
+      );
 
-        setHighestTeam(
-          state?.highestTeam ||
-            "No Team"
-        );
+      const serverPlayer =
+        state?.currentPlayer;
 
-        setAuctionStatus(
-          state?.auctionStatus ||
-            "waiting"
+      if (!serverPlayer) return;
+
+      const phase =
+        AUCTION_PHASES.findIndex(
+          (item) =>
+            item === serverPlayer.category
         );
 
-        const serverPlayer =
-          state?.currentPlayer;
+      if (phase !== -1) {
+        setPhaseIndex(phase);
 
-        if (!serverPlayer) return;
-
-        const phase =
-          AUCTION_PHASES.findIndex(
-            (item) =>
-              item ===
+        const playersInPhase =
+          players.filter(
+            (player) =>
+              player.category ===
               serverPlayer.category
           );
 
-        if (phase !== -1) {
-          setPhaseIndex(
-            phase
+        const index =
+          playersInPhase.findIndex(
+            (player) =>
+              player.id ===
+              serverPlayer.id
           );
 
-          const playersInPhase =
-            players.filter(
-              (player) =>
-                player.category ===
-                serverPlayer.category
-            );
-
-          const index =
-            playersInPhase.findIndex(
-              (player) =>
-                player.id ===
-                serverPlayer.id
-            );
-
-          if (index !== -1) {
-            setPlayerIndex(
-              index
-            );
-          }
+        if (index !== -1) {
+          setPlayerIndex(index);
         }
-      };
-
-    const handleSoldUpdate =
-      (data) => {
-        setSoldPlayers(
-          data || []
-        );
-      };
-
-    const handleUnsoldUpdate =
-      (data) => {
-        setUnsoldPlayers(
-          data || []
-        );
-      };
-
-    const handleError =
-      (data) => {
-        alert(
-          data?.message ||
-            "Something went wrong."
-        );
-      };
-
-    socket.on(
-      "connect",
-      handleConnect
-    );
-
-    socket.on(
-      "disconnect",
-      handleDisconnect
-    );
-
-    socket.on(
-      "connect_error",
-      handleConnectError
-    );
+      }
+    };
 
     socket.on(
       "teams:update",
-      handleTeamsUpdate
+      (data) => {
+        setTeams(data || {});
+      }
     );
 
     socket.on(
@@ -227,95 +161,44 @@ function ParticipantDashboard({
 
     socket.on(
       "sold:update",
-      handleSoldUpdate
+      (data) => {
+        setSoldPlayers(data || []);
+      }
     );
 
     socket.on(
       "unsold:update",
-      handleUnsoldUpdate
+      (data) => {
+        setUnsoldPlayers(data || []);
+      }
     );
 
     socket.on(
       "participant:error",
-      handleError
+      (data) => {
+        alert(
+          data?.message ||
+            "Something went wrong."
+        );
+      }
     );
 
-    if (
-      socket.connected &&
-      teamName &&
-      captainName
-    ) {
-      socket.emit(
-        "participant:join",
-        {
-          teamName,
-          captainName,
-        }
-      );
-    }
-
     return () => {
-      socket.off(
-        "connect",
-        handleConnect
-      );
-
-      socket.off(
-        "disconnect",
-        handleDisconnect
-      );
-
-      socket.off(
-        "connect_error",
-        handleConnectError
-      );
-
-      socket.off(
-        "teams:update",
-        handleTeamsUpdate
-      );
-
       socket.off(
         "auction:state",
         handleAuctionState
       );
-
-      socket.off(
-        "sold:update",
-        handleSoldUpdate
-      );
-
-      socket.off(
-        "unsold:update",
-        handleUnsoldUpdate
-      );
-
-      socket.off(
-        "participant:error",
-        handleError
-      );
     };
-  }, [
-    teamName,
-    captainName,
-  ]);
-
-  // =====================================
-  // BID
-  // =====================================
+  }, []);
 
   const placeBid = () => {
     if (!myTeam) {
-      alert(
-        "Your team is not connected."
-      );
+      alert("Your team is not connected.");
       return;
     }
 
     if (!auctionLive) {
-      alert(
-        "Auction is not live."
-      );
+      alert("Auction is not live.");
       return;
     }
 
@@ -323,119 +206,72 @@ function ParticipantDashboard({
       myTeam.players.length >=
       MAX_PLAYERS
     ) {
-      alert(
-        "Your team already has 7 players."
-      );
+      alert("Your team is full.");
       return;
     }
 
     const nextBid =
-      currentBid +
-      BID_INCREMENT;
+      currentBid + 100;
 
-    if (
-      nextBid >
-      myTeam.budget
-    ) {
-      alert(
-        "You don't have enough budget."
-      );
+    if (nextBid > myTeam.budget) {
+      alert("You don't have enough budget.");
       return;
     }
 
-    socket.emit(
-      "auction:bid",
-      {
-        amount: nextBid,
-      }
-    );
+    socket.emit("auction:bid", {
+      amount: nextBid,
+    });
   };
 
-  // =====================================
-  // FORMAT
-  // =====================================
-
-  const formatMoney = (
-    value
-  ) => {
-    return Number(
-      value || 0
-    ).toLocaleString();
-  };
-
-  const statusLabel =
-    auctionStatus === "live"
-      ? "LIVE AUCTION"
-      : auctionStatus === "sold"
-      ? "PLAYER SOLD"
-      : auctionStatus === "unsold"
-      ? "PLAYER UNSOLD"
-      : "WAITING";
-
-  // =====================================
-  // RENDER
-  // =====================================
+  const formatMoney = (value) =>
+    Number(value || 0).toLocaleString();
 
   return (
     <div className="participant-dashboard">
 
-      {/* HEADER */}
-
       <header className="participant-header">
-
         <div>
-
           <p className="participant-eyebrow">
             FRIENDS FOOTBALL AUCTION
           </p>
 
-          <h1>
-            {teamName}
-          </h1>
+          <h1>{teamName}</h1>
 
           <p>
-            Captain:{" "}
-            {captainName}
+            Captain: {captainName}
           </p>
-
         </div>
 
         <div className="participant-header-right">
-
           <div
             className={`participant-live-status ${
-              auctionLive
-                ? "live"
-                : ""
+              auctionLive ? "live" : ""
             }`}
           >
             <span className="status-dot" />
 
-            {statusLabel}
+            {auctionLive
+              ? "LIVE AUCTION"
+              : auctionStatus === "sold"
+              ? "PLAYER SOLD"
+              : auctionStatus === "unsold"
+              ? "PLAYER UNSOLD"
+              : "WAITING"}
           </div>
 
           <button
             className="participant-logout-btn"
-            onClick={
-              onLogout
-            }
+            onClick={onLogout}
           >
             Logout
           </button>
-
         </div>
-
       </header>
-
-      {/* SUMMARY */}
 
       <section className="participant-summary">
 
         <div className="summary-card">
-
-          <span>
-            AVAILABLE BUDGET
-          </span>
+          <span>AVAILABLE BUDGET</span>
 
           <strong>
             $
@@ -443,53 +279,33 @@ function ParticipantDashboard({
               myTeam?.budget
             )}
           </strong>
-
         </div>
 
         <div className="summary-card">
-
-          <span>
-            PLAYERS
-          </span>
+          <span>PLAYERS</span>
 
           <strong>
-            {
-              myTeam
-                ?.players
-                ?.length || 0
-            }
-            /
+            {myTeam?.players?.length || 0}/
             {MAX_PLAYERS}
           </strong>
-
         </div>
 
         <div className="summary-card">
-
-          <span>
-            PLAYERS SOLD
-          </span>
+          <span>PLAYERS SOLD</span>
 
           <strong>
             {soldPlayers.length}
           </strong>
-
         </div>
 
       </section>
 
-      {/* CURRENT PLAYER */}
-
       <section className="participant-auction-card">
 
         {currentPlayer ? (
-
           <>
-
             <div className="participant-player-top">
-
               <div>
-
                 <span>
                   NOW AUCTIONING
                 </span>
@@ -501,59 +317,35 @@ function ParticipantDashboard({
                 <p>
                   {currentPlayer.position}
                 </p>
-
               </div>
 
               <div className="participant-player-number">
-
                 {playerIndex + 1}
 
                 <small>
-                  /{" "}
-                  {
-                    phasePlayers.length
-                  }
+                  / {phasePlayers.length}
                 </small>
-
               </div>
-
             </div>
 
             <div className="participant-player-info">
 
               <div>
-
-                <span>
-                  CATEGORY
-                </span>
-
+                <span>CATEGORY</span>
                 <strong>
-                  {
-                    currentPlayer.category
-                  }
+                  {currentPlayer.category}
                 </strong>
-
               </div>
 
               <div>
-
-                <span>
-                  TIER
-                </span>
-
+                <span>TIER</span>
                 <strong>
-                  {
-                    currentPlayer.tier
-                  }
+                  {currentPlayer.tier}
                 </strong>
-
               </div>
 
               <div>
-
-                <span>
-                  STARTING BID
-                </span>
+                <span>STARTING BID</span>
 
                 <strong>
                   $
@@ -561,16 +353,12 @@ function ParticipantDashboard({
                     startingBid
                   )}
                 </strong>
-
               </div>
 
             </div>
 
             <div className="participant-bid-box">
-
-              <span>
-                CURRENT BID
-              </span>
+              <span>CURRENT BID</span>
 
               <strong>
                 $
@@ -579,137 +367,84 @@ function ParticipantDashboard({
                     startingBid
                 )}
               </strong>
-
             </div>
 
             <div className="participant-highest">
-
               <span>
                 HIGHEST BIDDER
               </span>
 
-              <strong
-                className={
-                  highestTeam ===
-                  teamName
-                    ? "my-team-winning"
-                    : ""
-                }
-              >
-                {highestTeam ===
-                teamName
+              <strong>
+                {highestTeam === teamName
                   ? "YOUR TEAM"
                   : highestTeam}
               </strong>
-
             </div>
 
             <button
               className="place-bid-btn"
-              onClick={
-                placeBid
-              }
+              onClick={placeBid}
               disabled={
                 !auctionLive ||
                 !myTeam ||
-                myTeam.players
-                  .length >=
+                myTeam.players.length >=
                   MAX_PLAYERS ||
-                currentBid +
-                  BID_INCREMENT >
+                currentBid + 100 >
                   myTeam.budget
               }
             >
               🔨 PLACE BID
-
-              <span>
-                +$
-                {
-                  BID_INCREMENT
-                }
-              </span>
-
+              <span>+$100</span>
             </button>
 
             {!auctionLive && (
               <p className="waiting-message">
-                Waiting for admin to
-                start the auction...
+                Waiting for admin to start
+                the auction...
               </p>
             )}
-
           </>
-
         ) : (
-
           <div className="participant-waiting">
-
-            <div>
-              ⚽
-            </div>
+            <div>⚽</div>
 
             <h2>
               Waiting for Player
             </h2>
 
             <p>
-              The admin will start
-              the next auction soon.
+              The admin will start the
+              next auction soon.
             </p>
-
           </div>
-
         )}
 
       </section>
 
-      {/* MY SQUAD */}
-
       <section className="participant-section">
 
         <div className="participant-section-header">
-
           <div>
-
-            <span>
-              YOUR TEAM
-            </span>
-
-            <h2>
-              My Squad
-            </h2>
-
+            <span>YOUR TEAM</span>
+            <h2>My Squad</h2>
           </div>
 
           <strong>
-            {
-              myTeam
-                ?.players
-                ?.length || 0
-            }
-            /
+            {myTeam?.players?.length || 0}/
             {MAX_PLAYERS}
           </strong>
-
         </div>
 
         {myTeam?.players?.length ? (
-
           <div className="my-squad-grid">
 
             {myTeam.players.map(
-              (
-                player,
-                index
-              ) => (
-
+              (player, index) => (
                 <div
                   className="squad-player-card"
                   key={`${player.id}-${index}`}
                 >
-
                   <div>
-
                     <h3>
                       {player.name}
                     </h3>
@@ -717,7 +452,6 @@ function ParticipantDashboard({
                     <span>
                       {player.position}
                     </span>
-
                   </div>
 
                   <strong>
@@ -726,206 +460,126 @@ function ParticipantDashboard({
                       player.soldPrice
                     )}
                   </strong>
-
                 </div>
-
               )
             )}
 
           </div>
-
         ) : (
-
           <div className="participant-empty">
             No players purchased yet.
           </div>
-
         )}
 
       </section>
 
-      {/* ALL TEAMS */}
-
       <section className="participant-section">
 
         <div className="participant-section-header">
-
           <div>
-
-            <span>
-              TOURNAMENT
-            </span>
-
-            <h2>
-              All Teams
-            </h2>
-
+            <span>TOURNAMENT</span>
+            <h2>All Teams</h2>
           </div>
 
           <strong>
-            {
-              Object.keys(
-                teams
-              ).length
-            }
+            {Object.keys(teams).length}
           </strong>
-
         </div>
 
         <div className="other-teams-grid">
 
-          {Object.entries(
-            teams
-          ).map(
-            ([
-              name,
-              team,
-            ]) => {
+          {Object.entries(teams).map(
+            ([name, team]) => (
+              <div
+                key={name}
+                className={`other-team-card ${
+                  name === teamName
+                    ? "my-team"
+                    : ""
+                } ${
+                  name === highestTeam
+                    ? "highest-team"
+                    : ""
+                }`}
+              >
+                <div className="other-team-header">
 
-              const isMine =
-                name ===
-                teamName;
+                  <div>
+                    <h3>{name}</h3>
 
-              const isHighest =
-                name ===
-                highestTeam;
-
-              return (
-                <div
-                  key={name}
-                  className={`other-team-card ${
-                    isMine
-                      ? "my-team"
-                      : ""
-                  } ${
-                    isHighest
-                      ? "highest-team"
-                      : ""
-                  }`}
-                >
-
-                  <div className="other-team-header">
-
-                    <div>
-
-                      <h3>
-                        {name}
-                      </h3>
-
-                      <p>
-                        {
-                          team.captainName
-                        }
-                      </p>
-
-                    </div>
-
-                    {isMine && (
-                      <span>
-                        YOU
-                      </span>
-                    )}
-
+                    <p>
+                      {team.captainName}
+                    </p>
                   </div>
 
-                  <div className="other-team-stats">
+                  {name === teamName && (
+                    <span>YOU</span>
+                  )}
 
-                    <div>
+                </div>
 
-                      <small>
-                        BUDGET
-                      </small>
+                <div className="other-team-stats">
 
-                      <strong>
-                        $
-                        {formatMoney(
-                          team.budget
-                        )}
-                      </strong>
+                  <div>
+                    <small>BUDGET</small>
 
-                    </div>
+                    <strong>
+                      $
+                      {formatMoney(
+                        team.budget
+                      )}
+                    </strong>
+                  </div>
 
-                    <div>
+                  <div>
+                    <small>PLAYERS</small>
 
-                      <small>
-                        PLAYERS
-                      </small>
-
-                      <strong>
-                        {
-                          team.players
-                            .length
-                        }
-                        /
-                        {MAX_PLAYERS}
-                      </strong>
-
-                    </div>
-
+                    <strong>
+                      {team.players.length}/
+                      {MAX_PLAYERS}
+                    </strong>
                   </div>
 
                 </div>
-              );
-            }
+              </div>
+            )
           )}
 
         </div>
 
       </section>
 
-      {/* SOLD PLAYERS */}
-
       <section className="participant-section">
 
         <div className="participant-section-header">
-
           <div>
-
-            <span>
-              AUCTION RESULTS
-            </span>
-
-            <h2>
-              Sold Players
-            </h2>
-
+            <span>AUCTION RESULTS</span>
+            <h2>Sold Players</h2>
           </div>
 
           <strong>
             {soldPlayers.length}
           </strong>
-
         </div>
 
-        {soldPlayers.length ===
-        0 ? (
-
+        {soldPlayers.length === 0 ? (
           <div className="participant-empty">
             No players sold yet.
           </div>
-
         ) : (
-
           <div className="participant-results-grid">
 
             {soldPlayers.map(
-              (
-                player,
-                index
-              ) => (
-
+              (player, index) => (
                 <div
                   className={`participant-result-card ${
-                    player.team ===
-                    teamName
+                    player.team === teamName
                       ? "my-purchase"
                       : ""
                   }`}
                   key={`${player.id}-${index}`}
                 >
-
                   <div>
-
                     <h3>
                       {player.name}
                     </h3>
@@ -933,19 +587,14 @@ function ParticipantDashboard({
                     <span>
                       {player.position}
                     </span>
-
                   </div>
 
                   <div>
-
-                    <small>
-                      TEAM
-                    </small>
+                    <small>TEAM</small>
 
                     <strong>
                       {player.team}
                     </strong>
-
                   </div>
 
                   <strong>
@@ -954,66 +603,42 @@ function ParticipantDashboard({
                       player.soldPrice
                     )}
                   </strong>
-
                 </div>
-
               )
             )}
 
           </div>
-
         )}
 
       </section>
 
-      {/* UNSOLD */}
-
       <section className="participant-section">
 
         <div className="participant-section-header">
-
           <div>
-
-            <span>
-              AUCTION RESULTS
-            </span>
-
-            <h2>
-              Unsold Players
-            </h2>
-
+            <span>AUCTION RESULTS</span>
+            <h2>Unsold Players</h2>
           </div>
 
           <strong>
             {unsoldPlayers.length}
           </strong>
-
         </div>
 
-        {unsoldPlayers.length ===
-        0 ? (
-
+        {unsoldPlayers.length === 0 ? (
           <div className="participant-empty">
             No unsold players yet.
           </div>
-
         ) : (
-
           <div className="participant-results-grid">
 
             {unsoldPlayers.map(
-              (
-                player,
-                index
-              ) => (
-
+              (player, index) => (
                 <div
                   className="participant-result-card"
                   key={`${player.id}-${index}`}
                 >
-
                   <div>
-
                     <h3>
                       {player.name}
                     </h3>
@@ -1021,32 +646,24 @@ function ParticipantDashboard({
                     <span>
                       {player.position}
                     </span>
-
                   </div>
 
                   <div>
-
-                    <small>
-                      CATEGORY
-                    </small>
+                    <small>CATEGORY</small>
 
                     <strong>
                       {player.category}
                     </strong>
-
                   </div>
 
                   <strong className="unsold-text">
                     UNSOLD
                   </strong>
-
                 </div>
-
               )
             )}
 
           </div>
-
         )}
 
       </section>

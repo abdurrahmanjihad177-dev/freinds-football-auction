@@ -29,7 +29,7 @@ const players = [
   },
   {
     id: 4,
-    name: "Shurjo frnd",
+    name: "Mahir",
     position: "CF",
     category: "Attackers",
     tier: "TOP STAR",
@@ -135,7 +135,7 @@ const players = [
   },
   {
     id: 16,
-    name: "Shurjo frnd2",
+    name: "Shurjor frnd",
     position: "CB",
     category: "Defenders",
     tier: "TOP STAR",
@@ -199,15 +199,15 @@ const players = [
     name: "Sayed",
     position: "GK",
     category: "Goalkeepers",
-    tier: "UNDERDOG",
+    tier: " TOP STAR",
     startingBid: 1000,
   },
   {
     id: 24,
-    name: "New GK",
+    name: "Anas",
     position: "GK",
     category: "Goalkeepers",
-    tier: "UNDERDOG",
+    tier: " TOP STAR",
     startingBid: 1000,
   },
 ];
