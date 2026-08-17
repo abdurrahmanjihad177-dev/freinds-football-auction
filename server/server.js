@@ -16,10 +16,19 @@ const io = new Server(server, {
 app.use(cors());
 app.use(express.json());
 
+// =====================================
+// CONFIG
+// =====================================
+
 const PORT = process.env.PORT || 5000;
+
 const MAX_PLAYERS = 7;
 const STARTING_BUDGET = 10000;
 const BID_INCREMENT = 100;
+
+// =====================================
+// AUCTION DATA
+// =====================================
 
 const teams = {};
 const participants = new Map();
@@ -34,284 +43,672 @@ let auctionState = {
   auctionStatus: "waiting",
 };
 
-function emitAll() {
-  io.emit("teams:update", teams);
+// =====================================
+// HELPERS
+// =====================================
 
+function emitTeams() {
+  io.emit("teams:update", teams);
+}
+
+function emitParticipants() {
+  const data = Array.from(
+    participants.values()
+  ).map((participant) => ({
+    teamName: participant.teamName,
+    captainName: participant.captainName,
+    online: participant.online,
+  }));
+
+  io.emit("participants:update", data);
+}
+
+function emitAuctionState() {
   io.emit(
-    "participants:update",
-    Array.from(participants.values()).map((p) => ({
-      teamName: p.teamName,
-      captainName: p.captainName,
-      online: p.online,
-    }))
+    "auction:state",
+    auctionState
+  );
+}
+
+function emitResults() {
+  io.emit(
+    "sold:update",
+    [...soldPlayers]
   );
 
-  io.emit("auction:state", auctionState);
-  io.emit("sold:update", soldPlayers);
-  io.emit("unsold:update", unsoldPlayers);
+  io.emit(
+    "unsold:update",
+    [...unsoldPlayers]
+  );
 }
+
+function resetAuctionState() {
+  auctionState = {
+    currentPlayer: null,
+    currentBid: 0,
+    highestTeam: "No Team",
+    auctionStatus: "waiting",
+  };
+}
+
+// =====================================
+// COMPLETE AUCTION RESET
+// =====================================
+
+function resetEverything() {
+  // Clear teams
+  Object.keys(teams).forEach(
+    (teamName) => {
+      delete teams[teamName];
+    }
+  );
+
+  // Clear participants
+  participants.clear();
+
+  // Clear results
+  soldPlayers.length = 0;
+  unsoldPlayers.length = 0;
+
+  // Reset auction
+  resetAuctionState();
+
+  // Send fresh state
+  emitTeams();
+  emitParticipants();
+  emitAuctionState();
+  emitResults();
+
+  console.log(
+    "================================="
+  );
+
+  console.log(
+    "🔄 COMPLETE AUCTION RESET"
+  );
+
+  console.log(
+    "Teams:",
+    Object.keys(teams).length
+  );
+
+  console.log(
+    "Sold:",
+    soldPlayers.length
+  );
+
+  console.log(
+    "Unsold:",
+    unsoldPlayers.length
+  );
+
+  console.log(
+    "================================="
+  );
+}
+
+// =====================================
+// HOME
+// =====================================
 
 app.get("/", (req, res) => {
   res.json({
-    message: "Friends Football Auction Server Running",
-    status: "online",
+    success: true,
+    message:
+      "Friends Football Auction Server Running",
   });
 });
 
-io.on("connection", (socket) => {
-  console.log("Socket connected:", socket.id);
+// =====================================
+// SOCKET
+// =====================================
 
+io.on("connection", (socket) => {
+  console.log(
+    "Connected:",
+    socket.id
+  );
+
+  // ===================================
   // ADMIN JOIN
+  // ===================================
+
   socket.on("admin:join", () => {
     socket.data.isAdmin = true;
 
     socket.join("admin");
 
-    emitAll();
+    socket.emit(
+      "auction:state",
+      auctionState
+    );
 
-    console.log("Admin connected:", socket.id);
-  });
+    socket.emit(
+      "teams:update",
+      teams
+    );
 
-  // PARTICIPANT JOIN
-  socket.on("participant:join", (data) => {
-    const teamName = String(data?.teamName || "").trim();
-    const captainName = String(data?.captainName || "").trim();
+    socket.emit(
+      "participants:update",
+      Array.from(
+        participants.values()
+      )
+    );
 
-    if (!teamName || !captainName) {
-      socket.emit("participant:error", {
-        message: "Team name and captain name are required.",
-      });
-      return;
-    }
+    socket.emit(
+      "sold:update",
+      [...soldPlayers]
+    );
 
-    if (!teams[teamName]) {
-      teams[teamName] = {
-        teamName,
-        captainName,
-        budget: STARTING_BUDGET,
-        players: [],
-      };
-    } else {
-      teams[teamName].captainName = captainName;
-    }
-
-    participants.set(socket.id, {
-      teamName,
-      captainName,
-      online: true,
-    });
-
-    socket.data.teamName = teamName;
-
-    emitAll();
+    socket.emit(
+      "unsold:update",
+      [...unsoldPlayers]
+    );
 
     console.log(
-      `Participant connected: ${captainName} → ${teamName}`
+      "Admin joined:",
+      socket.id
     );
   });
 
-  // START AUCTION
-  socket.on("auction:start", (data) => {
-    if (!data?.player) {
-      console.log("No player received.");
-      return;
-    }
+  // ===================================
+  // NEW ADMIN SESSION
+  // ===================================
 
-    const player = data.player;
-
-    auctionState = {
-      currentPlayer: player,
-      currentBid: Number(player.startingBid) || 0,
-      highestTeam: "No Team",
-      auctionStatus: "live",
-    };
-
-    emitAll();
-
-    console.log(`Auction started: ${player.name}`);
-  });
-
-  // BID
-  socket.on("auction:bid", (data) => {
-    if (auctionState.auctionStatus !== "live") {
-      return;
-    }
-
-    const teamName = socket.data.teamName;
-
-    if (!teamName || !teams[teamName]) {
-      socket.emit("participant:error", {
-        message: "You are not connected to a team.",
-      });
-      return;
-    }
-
-    const team = teams[teamName];
-
-    if (team.players.length >= MAX_PLAYERS) {
-      socket.emit("participant:error", {
-        message: "Your team already has maximum players.",
-      });
-      return;
-    }
-
-    const amount = Number(data?.amount);
-
-    if (!Number.isFinite(amount)) {
-      return;
-    }
-
-    if (amount !== auctionState.currentBid + BID_INCREMENT) {
-      return;
-    }
-
-    if (amount > team.budget) {
-      socket.emit("participant:error", {
-        message: "Your team does not have enough budget.",
-      });
-      return;
-    }
-
-    auctionState.currentBid = amount;
-    auctionState.highestTeam = teamName;
-
-    emitAll();
-
-    console.log(`${teamName} bid ${amount}`);
-  });
-
-  // ADMIN SELECT TEAM
-  socket.on("auction:select-team", (data) => {
-    if (auctionState.auctionStatus !== "live") {
-      return;
-    }
-
-    const teamName = String(data?.teamName || "").trim();
-    const team = teams[teamName];
-
-    if (!team) {
-      return;
-    }
-
-    if (team.players.length >= MAX_PLAYERS) {
-      return;
-    }
-
-    if (auctionState.currentBid > team.budget) {
-      return;
-    }
-
-    auctionState.highestTeam = teamName;
-
-    emitAll();
-  });
-
-  // SOLD
-  socket.on("auction:sold", () => {
-    if (auctionState.auctionStatus !== "live") {
-      return;
-    }
-
-    const player = auctionState.currentPlayer;
-    const teamName = auctionState.highestTeam;
-
-    if (!player || teamName === "No Team") {
-      return;
-    }
-
-    const team = teams[teamName];
-
-    if (!team) {
-      return;
-    }
-
-    const price = auctionState.currentBid;
-
-    if (team.players.length >= MAX_PLAYERS) {
-      return;
-    }
-
-    if (price > team.budget) {
-      return;
-    }
-
-    const purchasedPlayer = {
-      ...player,
-      team: teamName,
-      soldPrice: price,
-    };
-
-    team.players.push(purchasedPlayer);
-    team.budget -= price;
-
-    soldPlayers.push(purchasedPlayer);
-
-    auctionState.auctionStatus = "sold";
-
-    emitAll();
-
-    console.log(
-      `${player.name} sold to ${teamName} for ${price}`
-    );
-  });
-
-  // UNSOLD
-  socket.on("auction:unsold", () => {
-    if (auctionState.auctionStatus !== "live") {
-      return;
-    }
-
-    const player = auctionState.currentPlayer;
-
-    if (!player) {
-      return;
-    }
-
-    unsoldPlayers.push({
-      ...player,
-      status: "unsold",
-    });
-
-    auctionState.auctionStatus = "unsold";
-
-    emitAll();
-
-    console.log(`${player.name} marked unsold`);
-  });
-
-  // RESET
-  socket.on("auction:reset", () => {
-    auctionState = {
-      currentPlayer: null,
-      currentBid: 0,
-      highestTeam: "No Team",
-      auctionStatus: "waiting",
-    };
-
-    emitAll();
-
-    console.log("Auction reset");
-  });
-
-  // DISCONNECT
-  socket.on("disconnect", () => {
-    const participant = participants.get(socket.id);
-
-    if (participant) {
-      participant.online = false;
-      participants.set(socket.id, participant);
-
-      emitAll();
+  socket.on(
+    "admin:start-session",
+    () => {
+      socket.data.isAdmin = true;
 
       console.log(
-        `Participant disconnected: ${participant.teamName}`
+        "🆕 NEW AUCTION SESSION:",
+        socket.id
       );
-    } else {
-      console.log("Socket disconnected:", socket.id);
+
+      resetEverything();
+
+      socket.join("admin");
     }
-  });
+  );
+
+  // ===================================
+  // ADMIN RESET
+  // ===================================
+
+  socket.on(
+    "admin:reset-all",
+    () => {
+      if (!socket.data.isAdmin) {
+        return;
+      }
+
+      console.log(
+        "🔄 ADMIN RESET:",
+        socket.id
+      );
+
+      resetEverything();
+    }
+  );
+
+  // ===================================
+  // PARTICIPANT JOIN
+  // ===================================
+
+  socket.on(
+    "participant:join",
+    (data) => {
+      const teamName =
+        String(
+          data?.teamName || ""
+        ).trim();
+
+      const captainName =
+        String(
+          data?.captainName || ""
+        ).trim();
+
+      if (
+        !teamName ||
+        !captainName
+      ) {
+        socket.emit(
+          "participant:error",
+          {
+            message:
+              "Team name and Captain name are required.",
+          }
+        );
+
+        return;
+      }
+
+      // Create team
+      if (!teams[teamName]) {
+        teams[teamName] = {
+          teamName,
+          captainName,
+          budget:
+            STARTING_BUDGET,
+          players: [],
+        };
+
+        console.log(
+          "🆕 New team:",
+          teamName
+        );
+      } else {
+        // Existing team
+        teams[teamName].captainName =
+          captainName;
+
+        console.log(
+          "🔁 Existing team:",
+          teamName
+        );
+      }
+
+      participants.set(
+        socket.id,
+        {
+          teamName,
+          captainName,
+          online: true,
+        }
+      );
+
+      socket.data.teamName =
+        teamName;
+
+      emitTeams();
+      emitParticipants();
+      emitAuctionState();
+      emitResults();
+    }
+  );
+
+  // ===================================
+  // START AUCTION
+  // ===================================
+
+  socket.on(
+    "auction:start",
+    (data) => {
+      if (!socket.data.isAdmin) {
+        return;
+      }
+
+      if (!data?.player) {
+        return;
+      }
+
+      const player =
+        data.player;
+
+      const startingBid =
+        Number(
+          player.startingBid
+        ) || 0;
+
+      auctionState = {
+        currentPlayer:
+          player,
+
+        currentBid:
+          startingBid,
+
+        highestTeam:
+          "No Team",
+
+        auctionStatus:
+          "live",
+      };
+
+      emitAuctionState();
+
+      console.log(
+        "🔨 Auction started:",
+        player.name
+      );
+    }
+  );
+
+  // ===================================
+  // PARTICIPANT BID
+  // ===================================
+
+  socket.on(
+    "auction:bid",
+    (data) => {
+      if (
+        auctionState.auctionStatus !==
+        "live"
+      ) {
+        return;
+      }
+
+      const teamName =
+        socket.data.teamName;
+
+      if (
+        !teamName ||
+        !teams[teamName]
+      ) {
+        socket.emit(
+          "participant:error",
+          {
+            message:
+              "You are not connected to a team.",
+          }
+        );
+
+        return;
+      }
+
+      const team =
+        teams[teamName];
+
+      if (
+        team.players.length >=
+        MAX_PLAYERS
+      ) {
+        socket.emit(
+          "participant:error",
+          {
+            message:
+              "Your team already has maximum players.",
+          }
+        );
+
+        return;
+      }
+
+      const amount =
+        Number(data?.amount);
+
+      if (!Number.isFinite(amount)) {
+        return;
+      }
+
+      if (
+        amount <=
+        auctionState.currentBid
+      ) {
+        return;
+      }
+
+      if (
+        amount !==
+        auctionState.currentBid +
+          BID_INCREMENT
+      ) {
+        return;
+      }
+
+      if (
+        amount >
+        team.budget
+      ) {
+        socket.emit(
+          "participant:error",
+          {
+            message:
+              "Your team does not have enough budget.",
+          }
+        );
+
+        return;
+      }
+
+      auctionState.currentBid =
+        amount;
+
+      auctionState.highestTeam =
+        teamName;
+
+      emitAuctionState();
+    }
+  );
+
+  // ===================================
+  // ADMIN SELECT TEAM
+  // ===================================
+
+  socket.on(
+    "auction:select-team",
+    (data) => {
+      if (!socket.data.isAdmin) {
+        return;
+      }
+
+      if (
+        auctionState.auctionStatus !==
+        "live"
+      ) {
+        return;
+      }
+
+      const teamName =
+        String(
+          data?.teamName || ""
+        ).trim();
+
+      const team =
+        teams[teamName];
+
+      if (!team) {
+        return;
+      }
+
+      if (
+        team.players.length >=
+        MAX_PLAYERS
+      ) {
+        return;
+      }
+
+      if (
+        auctionState.currentBid >
+        team.budget
+      ) {
+        return;
+      }
+
+      auctionState.highestTeam =
+        teamName;
+
+      emitAuctionState();
+    }
+  );
+
+  // ===================================
+  // SOLD
+  // ===================================
+
+  socket.on(
+    "auction:sold",
+    () => {
+      if (!socket.data.isAdmin) {
+        return;
+      }
+
+      if (
+        auctionState.auctionStatus !==
+        "live"
+      ) {
+        return;
+      }
+
+      const player =
+        auctionState.currentPlayer;
+
+      const teamName =
+        auctionState.highestTeam;
+
+      if (
+        !player ||
+        !teamName ||
+        teamName === "No Team"
+      ) {
+        return;
+      }
+
+      const team =
+        teams[teamName];
+
+      if (!team) {
+        return;
+      }
+
+      const price =
+        Number(
+          auctionState.currentBid
+        );
+
+      if (
+        team.players.length >=
+        MAX_PLAYERS
+      ) {
+        return;
+      }
+
+      if (
+        price >
+        team.budget
+      ) {
+        return;
+      }
+
+      const soldPlayer = {
+        ...player,
+        team: teamName,
+        soldPrice: price,
+      };
+
+      team.players.push(
+        soldPlayer
+      );
+
+      team.budget -= price;
+
+      soldPlayers.push(
+        soldPlayer
+      );
+
+      auctionState.auctionStatus =
+        "sold";
+
+      emitTeams();
+      emitResults();
+      emitAuctionState();
+
+      console.log(
+        `🏆 ${player.name} SOLD to ${teamName} for $${price}`
+      );
+    }
+  );
+
+  // ===================================
+  // UNSOLD
+  // ===================================
+
+  socket.on(
+    "auction:unsold",
+    () => {
+      if (!socket.data.isAdmin) {
+        return;
+      }
+
+      if (
+        auctionState.auctionStatus !==
+        "live"
+      ) {
+        return;
+      }
+
+      const player =
+        auctionState.currentPlayer;
+
+      if (!player) {
+        return;
+      }
+
+      unsoldPlayers.push({
+        ...player,
+        status: "unsold",
+      });
+
+      auctionState.auctionStatus =
+        "unsold";
+
+      emitResults();
+      emitAuctionState();
+
+      console.log(
+        `❌ ${player.name} UNSOLD`
+      );
+    }
+  );
+
+  // ===================================
+  // RESET CURRENT AUCTION
+  // ===================================
+
+  socket.on(
+    "auction:reset",
+    () => {
+      if (!socket.data.isAdmin) {
+        return;
+      }
+
+      resetAuctionState();
+
+      emitAuctionState();
+    }
+  );
+
+  // ===================================
+  // DISCONNECT
+  // ===================================
+
+  socket.on(
+    "disconnect",
+    () => {
+      const participant =
+        participants.get(
+          socket.id
+        );
+
+      if (participant) {
+        participant.online =
+          false;
+
+        participants.set(
+          socket.id,
+          participant
+        );
+
+        emitParticipants();
+      }
+
+      console.log(
+        "Disconnected:",
+        socket.id
+      );
+    }
+  );
 });
 
-server.listen(PORT, "0.0.0.0", () => {
-  console.log(`Auction server running on port ${PORT}`);
-});
+// =====================================
+// SERVER
+// =====================================
+
+server.listen(
+  PORT,
+  "0.0.0.0",
+  () => {
+    console.log(
+      `🚀 Auction server running on port ${PORT}`
+    );
+  }
+);
